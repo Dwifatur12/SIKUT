@@ -16,6 +16,7 @@ import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from 'fi
 // FIREBASE SETUP
 // ==========================================
 const CUSTOM_FIREBASE_CONFIG = {
+  // Masukkan konfigurasi Firebase Anda di sini jika diperlukan
   apiKey: "AIzaSyC_gCm3FLUMjHnFFIHzBdiZTgesYjEQLP8",
   authDomain: "sikut-3a7c3.firebaseapp.com",
   projectId: "sikut-3a7c3",
@@ -125,14 +126,31 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const isAdmin = adminUser !== null;
 
-  // State Pengaturan & Kategori
+  // State Pengaturan Akun
   const [adminCreds, setAdminCreds] = useState(() => {
     const saved = localStorage.getItem('sikutAdminCreds');
-    return saved ? JSON.parse(saved) : { username: 'admin', password: 'password', recoveryWa: '6281234567890' };
+    return saved ? JSON.parse(saved) : { username: 'admin', password: 'password' };
   });
+  
+  const [superAdminCreds, setSuperAdminCreds] = useState(() => {
+    const saved = localStorage.getItem('sikutSuperAdminCreds');
+    return saved ? JSON.parse(saved) : { username: 'lpkalabahi', password: 'pastiwbk123' };
+  });
+
+  const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(() => {
+    const saved = localStorage.getItem('sikutAutoLogout');
+    return saved ? parseInt(saved) : 30; // default 30 menit
+  });
+  
   const [showSettings, setShowSettings] = useState(false);
   const [showSettingsPassword, setShowSettingsPassword] = useState(false);
-  const [settingsForm, setSettingsForm] = useState(adminCreds);
+  const [settingsForm, setSettingsForm] = useState({ 
+    ...adminCreds, 
+    superUsername: superAdminCreds.username,
+    superPassword: superAdminCreds.password,
+    autoLogoutMinutes 
+  });
+  const [loginError, setLoginError] = useState('');
 
   // State Form Kunjungan
   const [showVisitForm, setShowVisitForm] = useState(false); // Modal untuk admin edit
@@ -221,6 +239,36 @@ export default function App() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Efek Auto Logout (Inaktivitas)
+  useEffect(() => {
+    let timeoutId;
+    const resetTimer = () => {
+      if (adminUser) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          setAdminUser(null);
+          showToast("Sesi habis. Anda telah otomatis logout karena tidak ada aktivitas.", "error");
+        }, autoLogoutMinutes * 60000);
+      }
+    };
+
+    if (adminUser) {
+      resetTimer(); // Mulai timer saat login
+      window.addEventListener('mousemove', resetTimer);
+      window.addEventListener('keypress', resetTimer);
+      window.addEventListener('click', resetTimer);
+      window.addEventListener('scroll', resetTimer);
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keypress', resetTimer);
+      window.removeEventListener('click', resetTimer);
+      window.removeEventListener('scroll', resetTimer);
+    };
+  }, [adminUser, autoLogoutMinutes]);
 
   // Reset Halaman ke-1 setiap kali filter/search berubah
   useEffect(() => {
@@ -316,20 +364,20 @@ export default function App() {
   // Fungsi Autentikasi
   const handleLogin = (e) => {
     e.preventDefault();
-    if (loginCreds.username === adminCreds.username && loginCreds.password === adminCreds.password) {
-      setAdminUser({ username: 'Petugas P2U' });
+    setLoginError('');
+    if (loginCreds.username === superAdminCreds.username && loginCreds.password === superAdminCreds.password) {
+      setAdminUser({ username: 'Super Admin', role: 'superadmin' });
+      setShowLoginModal(false);
+      setLoginCreds({ username: '', password: '' });
+      showToast('Berhasil Login sebagai Super Admin!');
+    } else if (loginCreds.username === adminCreds.username && loginCreds.password === adminCreds.password) {
+      setAdminUser({ username: 'Petugas P2U', role: 'admin' });
       setShowLoginModal(false);
       setLoginCreds({ username: '', password: '' });
       showToast('Berhasil Login sebagai Petugas!');
     } else {
-      showToast('Username atau Password salah!', 'error');
+      setLoginError('Username atau Password tidak valid!');
     }
-  };
-
-  const handleLupaPassword = () => {
-    const text = `*PENGINGAT SISTEM SIKUT LAPAS*%0A%0AUsername: ${adminCreds.username}%0APassword: ${adminCreds.password}%0A%0ASimpan pesan ini sebagai pengingat akses Admin.`;
-    window.open(`https://wa.me/${adminCreds.recoveryWa}?text=${text}`, '_blank');
-    showToast('Membuka WhatsApp untuk mengirim pengingat...');
   };
 
   const handleLogout = () => {
@@ -613,8 +661,16 @@ export default function App() {
       <header className={`fixed top-0 left-1/2 -translate-x-1/2 z-50 px-6 py-4 flex justify-between items-center pointer-events-none transition-all duration-500 w-full ${isMobileView ? 'max-w-[480px]' : 'max-w-full'}`}>
         <div className="glass-card px-5 py-3 rounded-2xl pointer-events-auto flex items-center gap-3 shadow-lg hover:shadow-xl transition-shadow">
           <div className="flex items-center gap-1">
-            {isAdmin && (
-              <button onClick={() => { setSettingsForm(adminCreds); setShowSettings(true); }} className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 transition-all" title="Pengaturan Sistem">
+            {adminUser?.role === 'superadmin' && (
+              <button onClick={() => { 
+                setSettingsForm({ 
+                  ...adminCreds, 
+                  superUsername: superAdminCreds.username, 
+                  superPassword: superAdminCreds.password, 
+                  autoLogoutMinutes 
+                }); 
+                setShowSettings(true); 
+              }} className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 transition-all" title="Pengaturan Sistem">
                 <Settings className="text-amber-600 dark:text-amber-500" size={20}/>
               </button>
             )}
@@ -946,10 +1002,17 @@ export default function App() {
       {showLoginModal && (
         <div className="fixed inset-0 z-[800] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="glass-card p-10 rounded-[3rem] w-full max-w-sm shadow-2xl relative text-center border border-blue-900/30 overflow-hidden">
-            <button onClick={() => setShowLoginModal(false)} className="absolute top-6 right-6 p-2 text-slate-500 hover:text-rose-500 transition-colors"><X size={18}/></button>
+            <button onClick={() => { setShowLoginModal(false); setLoginError(''); }} className="absolute top-6 right-6 p-2 text-slate-500 hover:text-rose-500 transition-colors"><X size={18}/></button>
             <Shield size={60} className="text-blue-900 mx-auto mb-6 drop-shadow-md"/>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Akses Petugas</h2>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-8">Login untuk Memantau Data</p>
+
+            {loginError && (
+              <div className="mb-4 p-3 bg-rose-100/80 border border-rose-300 dark:bg-rose-900/30 dark:border-rose-800 rounded-2xl text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in zoom-in duration-300">
+                <AlertCircle size={16} />
+                {loginError}
+              </div>
+            )}
 
             <form onSubmit={handleLogin} className="space-y-4 text-left">
               <div className="space-y-1">
@@ -966,7 +1029,6 @@ export default function App() {
                 </div>
               </div>
               <button type="submit" className="w-full py-4 mt-2 bg-blue-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest btn-3d transition-colors hover:text-white">Masuk Sistem</button>
-              <button type="button" onClick={handleLupaPassword} className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-900 transition-colors">Lupa Password?</button>
             </form>
           </div>
         </div>
@@ -1161,22 +1223,45 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-slate-900 dark:text-white leading-tight">Pengaturan Sistem</h2>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">Kelola Kredensial & Kategori</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">Kelola Kredensial & Sistem</p>
                 </div>
               </div>
             </div>
 
             <div className="p-8 overflow-y-auto bg-white/30 dark:bg-slate-900/30 flex-1 space-y-8 hide-scrollbar">
-              {/* Seksi Akun */}
+              
+              {/* Seksi Akun Super Admin */}
               <div>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2"><Shield size={16}/> Akun Petugas & Pemulihan</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2"><Shield size={16}/> Akun Super Admin</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Username</label>
+                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Username Super Admin</label>
+                    <input type="text" value={settingsForm.superUsername || ''} onChange={e=>setSettingsForm({...settingsForm, superUsername: e.target.value})} className="w-full px-4 py-3 premium-input rounded-xl text-xs font-bold outline-none transition-all text-slate-900 dark:text-white" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Password Super Admin</label>
+                    <div className="relative">
+                      <input type={showSettingsPassword ? "text" : "password"} value={settingsForm.superPassword || ''} onChange={e=>setSettingsForm({...settingsForm, superPassword: e.target.value})} className="w-full px-4 py-3 premium-input rounded-xl text-xs font-bold outline-none transition-all text-slate-900 dark:text-white" />
+                      <button type="button" onClick={() => setShowSettingsPassword(!showSettingsPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-600 transition-colors p-1">
+                        {showSettingsPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <hr className="border-slate-200 dark:border-slate-800"/>
+
+              {/* Seksi Akun Petugas */}
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-4 flex items-center gap-2"><User size={16}/> Akun Petugas Biasa</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Username Petugas</label>
                     <input type="text" value={settingsForm.username} onChange={e=>setSettingsForm({...settingsForm, username: e.target.value})} className="w-full px-4 py-3 premium-input rounded-xl text-xs font-bold outline-none transition-all text-slate-900 dark:text-white" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Password</label>
+                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Password Petugas</label>
                     <div className="relative">
                       <input type={showSettingsPassword ? "text" : "password"} value={settingsForm.password} onChange={e=>setSettingsForm({...settingsForm, password: e.target.value})} className="w-full px-4 py-3 premium-input rounded-xl text-xs font-bold outline-none transition-all text-slate-900 dark:text-white" />
                       <button type="button" onClick={() => setShowSettingsPassword(!showSettingsPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-600 transition-colors p-1">
@@ -1185,11 +1270,12 @@ export default function App() {
                     </div>
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
-                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Nomor WA Pemulihan (Format: 628...)</label>
-                    <input type="number" value={settingsForm.recoveryWa} onChange={e=>setSettingsForm({...settingsForm, recoveryWa: e.target.value})} placeholder="628..." className="w-full px-4 py-3 premium-input rounded-xl text-xs font-bold outline-none transition-all text-slate-900 dark:text-white" />
+                    <label className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-400 ml-1">Batas Waktu Auto Logout (Menit)</label>
+                    <input type="number" min="1" value={settingsForm.autoLogoutMinutes} onChange={e=>setSettingsForm({...settingsForm, autoLogoutMinutes: parseInt(e.target.value) || 1})} className="w-full px-4 py-3 premium-input rounded-xl text-xs font-bold outline-none transition-all text-slate-900 dark:text-white" />
                   </div>
                 </div>
               </div>
+
             </div>
 
             <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 flex gap-3 mt-auto shrink-0">
@@ -1197,9 +1283,19 @@ export default function App() {
                 Batal
               </button>
               <button onClick={() => {
-                setAdminCreds(settingsForm);
-                localStorage.setItem('sikutAdminCreds', JSON.stringify(settingsForm));
-                showToast('Pengaturan Akun Berhasil Disimpan!');
+                const newAdminCreds = { username: settingsForm.username, password: settingsForm.password };
+                const newSuperAdminCreds = { username: settingsForm.superUsername, password: settingsForm.superPassword };
+                
+                setAdminCreds(newAdminCreds);
+                localStorage.setItem('sikutAdminCreds', JSON.stringify(newAdminCreds));
+                
+                setSuperAdminCreds(newSuperAdminCreds);
+                localStorage.setItem('sikutSuperAdminCreds', JSON.stringify(newSuperAdminCreds));
+                
+                setAutoLogoutMinutes(settingsForm.autoLogoutMinutes);
+                localStorage.setItem('sikutAutoLogout', settingsForm.autoLogoutMinutes.toString());
+                
+                showToast('Pengaturan Berhasil Disimpan!');
                 setShowSettings(false);
               }} className="flex-[2] py-4 bg-amber-500 text-slate-900 rounded-2xl font-black uppercase text-[11px] tracking-widest btn-3d-gold flex items-center justify-center gap-2">
                 <CheckCircle2 size={18} /> Simpan Pengaturan
