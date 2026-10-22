@@ -16,6 +16,7 @@ import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from 'fi
 // FIREBASE SETUP
 // ==========================================
 const CUSTOM_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC_gCm3FLUMjHnFFIHzBdiZTgesYjEQLP8",
   authDomain: "sikut-3a7c3.firebaseapp.com",
   projectId: "sikut-3a7c3",
   storageBucket: "sikut-3a7c3.firebasestorage.app",
