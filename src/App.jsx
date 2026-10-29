@@ -562,7 +562,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0b1120] text-slate-950 dark:text-slate-100 transition-colors duration-500 font-sans selection:bg-blue-900/30 overflow-x-hidden relative flex justify-center">
+    <div 
+  className="min-h-screen text-slate-950 dark:text-slate-100 transition-colors duration-500 font-sans selection:bg-blue-900/30 overflow-x-hidden relative flex justify-center bg-cover bg-center bg-fixed bg-no-repeat"
+  style={{ backgroundImage: `url('/bg-lapas.jpg')` }}
+>
+  {/* Tambahkan overlay gelap/terang transparan agar teks tetap terbaca */}
+  <div className="absolute inset-0 bg-white/80 dark:bg-slate-950/90 -z-20 backdrop-blur-sm"></div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
         * { font-family: 'Plus Jakarta Sans', sans-serif; }
